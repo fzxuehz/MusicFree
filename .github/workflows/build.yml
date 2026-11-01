@@ -1,0 +1,77 @@
+name: Build Custom
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache RN dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-rn-${{ hashFiles('yarn.lock', 'package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-rn-
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Setup keystore
+        run: |
+          cp .build-store/lxmusic.jks android/app/release.keystore
+          cat > android/keystore.properties << 'EOF'
+          RELEASE_STORE_FILE=release.keystore
+          RELEASE_STORE_PASSWORD=XhzMusic2026
+          RELEASE_KEY_ALIAS=lxmusic
+          RELEASE_KEY_PASSWORD=XhzMusic2026
+          EOF
+
+      - name: Sanity check custom patches
+        run: |
+          test -f src/constants/presetPlugins.ts || { echo 'BAD: presetPlugins.ts missing'; exit 1; }
+          grep -q 'xhz_preset_gd.js' src/constants/presetPlugins.ts || { echo 'BAD: gd preset missing'; exit 1; }
+          grep -q 'xhz_preset_hyw.js' src/constants/presetPlugins.ts || { echo 'BAD: hyw preset missing'; exit 1; }
+          grep -q 'XHZ' src/entry/bootstrap/bootstrap.ts || { echo 'BAD: bootstrap patch missing'; exit 1; }
+          grep -q 'LEANBACK_LAUNCHER' android/app/src/main/AndroidManifest.xml || { echo 'BAD: leanback missing'; exit 1; }
+          echo 'sanity check passed'
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --parallel --build-cache
+
+      - name: Collect APKs
+        run: |
+          mkdir -p artifacts
+          cp android/app/build/outputs/apk/release/*.apk artifacts/
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: xhz-musicfree-apks
+          path: artifacts/*.apk
+          if-no-files-found: error
