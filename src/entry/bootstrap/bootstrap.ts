@@ -26,6 +26,8 @@ import i18n from "@/core/i18n";
 import bootstrapAtom from "./bootstrap.atom";
 import { getDefaultStore } from "jotai";
 import telemetry from "@/core/telemetry";
+import { PRESET_PLUGINS, PRESET_VERSION } from "@/constants/presetPlugins";
+import { exists as fsExists, writeFile } from "react-native-fs";
 
 
 // 依赖管理
@@ -107,6 +109,29 @@ async function bootstrapImpl() {
     bootstrapMetrics.BatchConfigSetup = bootstrapTimestamp.BatchConfigSetup - bootstrapTimestamp.FolderSetup;
     trace("配置初始化完成");
 
+
+    // ==== 薛鸿忠音乐：内置音源插件（首启写入插件目录，用户可在插件管理中卸载）====
+    try {
+        const markerPath = `${pathConst.dataPath}xhz_preset_v${PRESET_VERSION}.done`;
+        const markerExists = await fsExists(markerPath);
+        if (!markerExists) {
+            for (const presetPlugin of PRESET_PLUGINS) {
+                const target = `${pathConst.pluginPath}${presetPlugin.filename}`;
+                try {
+                    if (await fsExists(target)) continue;
+                    await writeFile(target, presetPlugin.code, "utf8");
+                } catch (e) {
+                    errorLog("XHZ preset write failed: " + presetPlugin.filename, e);
+                }
+            }
+            try {
+                await writeFile(markerPath, String(Date.now()), "utf8");
+            } catch {}
+            trace("XHZ: preset plugins installed");
+        }
+    } catch (e) {
+        errorLog("XHZ: preset plugins setup failed", e);
+    }
 
     // 加载插件
     await PluginManager.setup();
