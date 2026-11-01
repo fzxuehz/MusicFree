@@ -37,7 +37,9 @@ jobs:
             ${{ runner.os }}-rn-
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: |
+          corepack enable
+          yarn install --frozen-lockfile --network-timeout 600000
 
       - name: Setup keystore
         run: |
