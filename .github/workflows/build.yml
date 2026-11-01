@@ -30,7 +30,7 @@ jobs:
         with:
           path: |
             node_modules
-            ~/.gradle/caches
+            ~/.gradle/caches/modules-2
             ~/.gradle/wrapper
           key: ${{ runner.os }}-rn-${{ hashFiles('yarn.lock', 'package.json') }}
           restore-keys: |
@@ -64,7 +64,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --parallel --build-cache
+          ./gradlew clean assembleRelease --no-build-cache --parallel
 
       - name: Collect APKs
         run: |
